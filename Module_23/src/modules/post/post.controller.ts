@@ -2,6 +2,7 @@ import { Request, Response } from "express";
 import { PostService } from "./post.service";
 import { PostStatus } from "../../../generated/prisma/enums";
 import paginationSortingHelper from "../../helpers/paginationSortingHelper";
+import { UserRole } from "../../middleware/auth";
 
 const createPost = async (req: Request, res: Response) => {
   try {
@@ -117,14 +118,55 @@ const updatePost = async (req: Request, res: Response) => {
       throw new Error("You are not authorized");
     }
     const { postId } = req.params;
+    const isAdmin = user.role === UserRole.ADMIN;
+
     const result = await PostService.updatePost(
       postId as string,
       req.body,
-      user.id
+      user.id,
+      isAdmin
     );
     res.status(200).json(result);
   } catch (e) {
     const errorMessage = e instanceof Error ? e.message : "Post update failed!";
+    res.status(400).json({
+      error: errorMessage,
+      details: e,
+    });
+  }
+};
+
+const deletePost = async (req: Request, res: Response) => {
+  try {
+    const user = req.user;
+    if (!user) {
+      throw new Error("You are not authorized");
+    }
+    const { postId } = req.params;
+    const isAdmin = user.role === UserRole.ADMIN;
+
+    const result = await PostService.deletePost(
+      postId as string,
+      user.id,
+      isAdmin
+    );
+    res.status(200).json(result);
+  } catch (e) {
+    const errorMessage = e instanceof Error ? e.message : "Post delete failed!";
+    res.status(400).json({
+      error: errorMessage,
+      details: e,
+    });
+  }
+};
+
+const getStats = async (req: Request, res: Response) => {
+  try {
+    const result = await PostService.getStats();
+    res.status(200).json(result);
+  } catch (e) {
+    const errorMessage =
+      e instanceof Error ? e.message : "Stats fetched failed!";
     res.status(400).json({
       error: errorMessage,
       details: e,
@@ -138,4 +180,6 @@ export const PostController = {
   getPostById,
   getMyPosts,
   updatePost,
+  deletePost,
+  getStats,
 };

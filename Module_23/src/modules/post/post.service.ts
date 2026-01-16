@@ -244,7 +244,8 @@ const getMyPosts = async (authorId: string) => {
 const updatePost = async (
   postId: string,
   data: Partial<Post>,
-  authorId: string
+  authorId: string,
+  isAdmin: boolean
 ) => {
   const postData = await prisma.post.findUniqueOrThrow({
     where: {
@@ -256,8 +257,12 @@ const updatePost = async (
     },
   });
 
-  if (postData.authorId !== authorId) {
+  if (!isAdmin && postData.authorId !== authorId) {
     throw new Error("You are not the owner/creator of the post");
+  }
+
+  if (!isAdmin) {
+    delete data.isFeatured;
   }
 
   const result = await prisma.post.update({
@@ -270,10 +275,103 @@ const updatePost = async (
   return result;
 };
 
+const deletePost = async (
+  postId: string,
+  authorId: string,
+  isAdmin: boolean
+) => {
+  const postData = await prisma.post.findUniqueOrThrow({
+    where: {
+      id: postId,
+    },
+    select: {
+      id: true,
+      authorId: true,
+    },
+  });
+
+  if (!isAdmin && postData.authorId !== authorId) {
+    throw new Error("You are not the owner/creator of the post");
+  }
+
+  return await prisma.post.delete({
+    where: {
+      id: postId,
+    },
+  });
+};
+
+const getStats = async () => {
+  return await prisma.$transaction(async (tx) => {
+    const [
+      totalPost,
+      publishedPost,
+      draftPost,
+      archivedPost,
+      totalComments,
+      approvedComment,
+      rejectedComment,
+      totalUsers,
+      adminCount,
+      userCount,
+      totalViews,
+    ] = await Promise.all([
+      tx.post.count(),
+      tx.post.count({ where: { status: PostStatus.PUBLISHED } }),
+      tx.post.count({ where: { status: PostStatus.DRAFT } }),
+      tx.post.count({ where: { status: PostStatus.ARCHIVED } }),
+      tx.comment.count(),
+      tx.comment.count({ where: { status: CommentStatus.APPROVED } }),
+      tx.comment.count({ where: { status: CommentStatus.REJECTED } }),
+      tx.user.count(),
+      tx.user.count({ where: { role: "ADMIN" } }),
+      tx.user.count({ where: { role: "USER" } }),
+      tx.post.aggregate({
+        _sum: {
+          views: true,
+        },
+      }),
+    ]);
+
+    // const totalPost = await tx.post.count();
+    // const publishedPost = await tx.post.count({
+    //   where: {
+    //     status: PostStatus.PUBLISHED,
+    //   },
+    // });
+    // const draftPost = await tx.post.count({
+    //   where: {
+    //     status: PostStatus.DRAFT,
+    //   },
+    // });
+    // const archivedPost = await tx.post.count({
+    //   where: {
+    //     status: PostStatus.ARCHIVED,
+    //   },
+    // });
+
+    return {
+      totalPost,
+      publishedPost,
+      draftPost,
+      archivedPost,
+      totalComments,
+      approvedComment,
+      rejectedComment,
+      totalUsers,
+      adminCount,
+      userCount,
+      totalViews: totalViews._sum.views,
+    };
+  });
+};
+
 export const PostService = {
   createPost,
   getAllPost,
   getPostById,
   getMyPosts,
   updatePost,
+  deletePost,
+  getStats,
 };
