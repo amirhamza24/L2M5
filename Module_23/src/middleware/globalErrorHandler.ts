@@ -35,7 +35,7 @@ function errorHandler(
   //! prismaClientUnknownRequestError
   else if (err instanceof Prisma.PrismaClientUnknownRequestError) {
     statusCode = 500;
-    errorMessage = "Error occurred during query execution";
+    errorMessage = "Error occurred during query execution!";
   }
 
   //! prismaClientInitializationError
